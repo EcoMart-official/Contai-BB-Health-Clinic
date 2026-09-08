@@ -68,9 +68,8 @@ router.post("/booking/otp/request", (req, res): void => {
     return;
   }
   const challengeId = `challenge-${Date.now()}`;
-  // Development fallback while SMS delivery is not connected. In production this
-  // is the only branch to replace with the provider's send-verification call.
-  challenges.set(challengeId, { phone: parsed.data.phone, createdAt: Date.now(), code: "2468" });
+  // Fixed preview OTP requested for this build. No real WhatsApp/SMS message is sent.
+  challenges.set(challengeId, { phone: parsed.data.phone, createdAt: Date.now(), code: "123456" });
   res.json(
     RequestOtpResponse.parse({
       challengeId,

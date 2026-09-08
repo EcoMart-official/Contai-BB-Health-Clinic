@@ -115,8 +115,8 @@ export const RequestOtpResponse = zod.object({
 /**
  * @summary Verify a mobile OTP
  */
-export const verifyOtpBodyCodeMin = 4;
-export const verifyOtpBodyCodeMax = 4;
+export const verifyOtpBodyCodeMin = 6;
+export const verifyOtpBodyCodeMax = 6;
 
 
 

@@ -10,8 +10,8 @@ export interface OtpVerification {
   challengeId: string;
   phone: string;
   /**
-     * @minLength 4
-     * @maxLength 4
+     * @minLength 6
+     * @maxLength 6
      */
   code: string;
 }

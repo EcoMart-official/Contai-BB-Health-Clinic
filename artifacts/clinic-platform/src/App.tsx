@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
@@ -240,8 +240,66 @@ function Faqs() {
 }
 
 function Booking() {
+  const [step, setStep] = useState(1);
+  const [phone, setPhone] = useState('');
+  const [code, setCode] = useState('123456');
+  const [challenge, setChallenge] = useState<{ challengeId: string; maskedPhone: string; expiresInSeconds: number } | null>(null);
+  const [session, setSession] = useState<{ patientId: string; phone: string; isNew: boolean } | null>(null);
+  const [form, setForm] = useState({ patientName: '', doctorId: '', doctorName: '', department: '', date: '', time: '', reason: '' });
+  const doctorsQ = useGetDoctors({ query: { queryKey: getGetDoctorsQueryKey() } });
+  const depsQ = useGetDepartments({ query: { queryKey: getGetDepartmentsQueryKey() } });
+  const doctors = doctorsQ.data || fallbackDoctors;
+  const departments = depsQ.data || fallbackDepartments;
+  const requestOtp = useRequestOtp();
+  const verifyOtp = useVerifyOtp();
+  const create = useCreateAppointment();
+  const selectedDoctor = doctors.find((doctor) => doctor.id === form.doctorId);
+
+  const submitPhone = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (phone.length < 8) return;
+    requestOtp.mutate({ data: { phone } }, { onSuccess: (result) => { setChallenge(result); setCode('123456'); setStep(2); } });
+  };
+
+  const submitCode = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!challenge) return;
+    verifyOtp.mutate({ data: { challengeId: challenge.challengeId, phone, code } }, {
+      onSuccess: (result) => {
+        setSession(result);
+        localStorage.setItem('clinicPatientSession', JSON.stringify(result));
+        setStep(3);
+      },
+    });
+  };
+
+  const submitBooking = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!session || !form.doctorId || !form.date || !form.time || !form.patientName) return;
+    const body: AppointmentInput = { patientId: session.patientId, patientName: form.patientName, phone: session.phone, doctorId: form.doctorId, doctorName: form.doctorName, department: form.department, date: form.date, time: form.time, reason: form.reason };
+    create.mutate({ data: body }, { onSuccess: () => { queryClient.invalidateQueries({ queryKey: getGetAppointmentsQueryKey({ patientId: session.patientId }) }); setStep(4); } });
+  };
+
+  return <Shell><main className="page-enter bg-[hsl(var(--secondary)/.32)]"><div className="mx-auto max-w-5xl px-5 py-12 lg:px-8 lg:py-20">
+    <div className="mb-10"><Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground"><ChevronRight className="h-4 w-4 rotate-180" /> Back to clinic</Link><p className="mt-8 font-mono-ui text-[10px] uppercase tracking-[.2em] text-[hsl(var(--accent))]">Private booking flow</p><h1 className="mt-3 font-display text-4xl font-extrabold tracking-[-.06em] text-primary md:text-6xl">Book with confidence.</h1><p className="mt-4 max-w-xl text-base leading-7 text-muted-foreground">Public browsing is open. We use WhatsApp verification here so your appointment stays connected to you.</p></div>
+    <div className="mb-8 flex items-center gap-2">{['Verify WhatsApp', 'Your details', 'Choose a visit', 'Confirmed'].map((label, index) => <div className="flex flex-1 items-center gap-2" key={label}><div className={cx('flex h-8 w-8 shrink-0 items-center justify-center rounded-full font-mono-ui text-xs font-bold', step > index ? 'bg-primary text-primary-foreground' : 'border border-border bg-card text-muted-foreground')}>{step > index ? <Check className="h-4 w-4" /> : index + 1}</div><span className="hidden text-xs font-semibold text-muted-foreground sm:block">{label}</span>{index < 3 && <div className={cx('h-px flex-1', step > index + 1 ? 'bg-primary' : 'bg-border')} />}</div>)}</div>
+    <div className="rounded-[1.5rem] border border-border bg-card p-6 shadow-soft md:p-10">
+      {step === 1 && <form onSubmit={submitPhone} className="mx-auto max-w-lg"><StepIcon icon={<Phone />} title="First, your WhatsApp number." text="We will send a one-time code to WhatsApp. No password, no account to remember." /><label className="mt-8 block text-sm font-bold text-primary">WhatsApp number<input data-testid="input-booking-phone" type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Enter your WhatsApp number" className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none ring-primary/20 transition focus:ring-4" /></label><button data-testid="button-request-otp" disabled={requestOtp.isPending} className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3.5 text-sm font-bold text-primary-foreground disabled:opacity-60">{requestOtp.isPending ? 'Preparing WhatsApp code…' : 'Send WhatsApp verification code'} <ArrowRight className="h-4 w-4" /></button>{requestOtp.isError && <p className="mt-3 text-sm text-destructive">We could not prepare that code. Please check the number or call us.</p>}</form>}
+      {step === 2 && <form onSubmit={submitCode} className="mx-auto max-w-lg"><StepIcon icon={<ShieldCheck />} title="Enter your 6-digit code." text={challenge ? `OTP sent to WhatsApp ${challenge.maskedPhone}. Use the default code 123456.` : 'OTP sent to WhatsApp. Use the default code 123456.'} /><label className="mt-8 block text-sm font-bold text-primary">WhatsApp OTP<input data-testid="input-otp-code" inputMode="numeric" maxLength={6} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, ''))} placeholder="123456" className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 text-center font-mono-ui text-xl tracking-[.5em] outline-none ring-primary/20 transition focus:ring-4" /></label><button data-testid="button-verify-otp" disabled={verifyOtp.isPending} className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3.5 text-sm font-bold text-primary-foreground disabled:opacity-60">{verifyOtp.isPending ? 'Checking…' : 'Verify and continue'} <ArrowRight className="h-4 w-4" /></button>{verifyOtp.isError && <p className="mt-3 text-sm text-destructive">That code did not work. Please try again.</p>}<button type="button" onClick={() => setStep(1)} className="mx-auto mt-5 block text-xs font-semibold text-muted-foreground underline">Use a different number</button></form>}
+      {step === 3 && <form onSubmit={submitBooking} className="space-y-8"><StepIcon icon={<CalendarDays />} title="Choose your visit." text="Select a department, doctor, preferred date and time." /><label className="block text-sm font-bold text-primary">Patient name<input data-testid="input-patient-name" required value={form.patientName} onChange={(event) => setForm({ ...form, patientName: event.target.value })} placeholder="Full name" className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-primary/20" /></label><div className="grid gap-6 md:grid-cols-2"><label className="text-sm font-bold text-primary">Department<select data-testid="select-booking-department" required value={form.department} onChange={(event) => setForm({ ...form, department: event.target.value })} className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-primary/20"><option value="">Choose department</option>{departments.map((department) => <option key={department.id} value={department.name}>{department.name}</option>)}</select></label><label className="text-sm font-bold text-primary">Doctor<select data-testid="select-booking-doctor" required value={form.doctorId} onChange={(event) => { const doctor = doctors.find((item) => item.id === event.target.value); setForm({ ...form, doctorId: event.target.value, doctorName: doctor?.name || '', department: form.department || doctor?.specialty || '' }); }} className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-primary/20"><option value="">Choose doctor</option>{doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.name} · {doctor.specialty}</option>)}</select></label><label className="text-sm font-bold text-primary">Preferred date<input data-testid="input-booking-date" required type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-primary/20" /></label><label className="text-sm font-bold text-primary">Preferred time<input data-testid="input-booking-time" required type="time" value={form.time} onChange={(event) => setForm({ ...form, time: event.target.value })} className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-primary/20" /></label></div><label className="block text-sm font-bold text-primary">Reason for visit<span className="ml-2 font-normal text-muted-foreground">(optional)</span><textarea data-testid="input-booking-reason" value={form.reason} onChange={(event) => setForm({ ...form, reason: event.target.value })} placeholder="A brief note for the clinic" rows={3} className="mt-2 w-full resize-none rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-primary/20" /></label>{selectedDoctor && <p className="rounded-xl bg-secondary px-4 py-3 text-xs text-primary"><Clock3 className="mr-2 inline h-4 w-4" /> Usual schedule: {selectedDoctor.schedule}. The clinic will confirm your request.</p>}<button data-testid="button-confirm-booking" disabled={create.isPending} className="flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3.5 text-sm font-bold text-primary-foreground disabled:opacity-60">{create.isPending ? 'Creating request…' : 'Confirm booking request'} <Check className="h-4 w-4" /></button>{create.isError && <p className="text-sm text-destructive">We could not create that request. Please call the clinic and we will help.</p>}</form>}
+      {step === 4 && <div className="mx-auto max-w-lg text-center"><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[hsl(var(--secondary))] text-primary"><Check className="h-8 w-8" /></div><p className="mt-6 font-mono-ui text-[10px] uppercase tracking-[.2em] text-[hsl(var(--accent))]">Request received</p><h2 className="mt-3 font-display text-3xl font-extrabold text-primary">You are on the list.</h2><p className="mt-4 text-sm leading-7 text-muted-foreground">The clinic team will confirm the details for {form.doctorName} on {form.date}. Your patient portal is ready whenever you need it.</p><div className="mt-7 flex flex-wrap justify-center gap-3"><Link href="/patient" className="rounded-full bg-primary px-5 py-3 text-sm font-bold text-primary-foreground">Open patient portal</Link><Link href="/" className="rounded-full border border-border px-5 py-3 text-sm font-bold text-primary">Back home</Link></div></div>}
+    </div>
+  </div></main></Shell>;
+}
+
+function BookingLegacy() {
   const [, setLocation] = useLocation();
-  const [step, setStep] = useState(1); const [phone, setPhone] = useState(''); const [code, setCode] = useState(''); const [challenge, setChallenge] = useState<{ challengeId: string; maskedPhone: string; expiresInSeconds: number } | null>(null); const [session, setSession] = useState<{ patientId: string; phone: string; isNew: boolean } | null>(null); const [form, setForm] = useState({ patientName: '', doctorId: '', doctorName: '', department: '', date: '', time: '', reason: '' });
+  const [step, setStep] = useState(1); const [phone, setPhone] = useState(''); const [code, setCode] = useState('123456'); const [challenge, setChallenge] = useState<{ challengeId: string; maskedPhone: string; expiresInSeconds: number } | null>(null); const [session, setSession] = useState<{ patientId: string; phone: string; isNew: boolean } | null>(null); const [form, setForm] = useState({ patientName: '', doctorId: '', doctorName: '', department: '', date: '', time: '', reason: '' });
+  useEffect(() => {
+    if (step === 1) {
+      document.querySelector('[data-testid="input-booking-phone"]')?.setAttribute('placeholder', 'Enter your WhatsApp number');
+    }
+  }, [step]);
   const doctorsQ = useGetDoctors({ query: { queryKey: getGetDoctorsQueryKey() } }); const depsQ = useGetDepartments({ query: { queryKey: getGetDepartmentsQueryKey() } }); const doctors = doctorsQ.data || fallbackDoctors; const deps = depsQ.data || fallbackDepartments;
   const requestOtp = useRequestOtp(); const verifyOtp = useVerifyOtp(); const create = useCreateAppointment();
   const selectedDoctor = doctors.find((d) => d.id === form.doctorId);
