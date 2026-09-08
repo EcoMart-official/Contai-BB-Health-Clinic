@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Contai B.B. Health Clinic"
+description = "A premium public healthcare website with authenticated appointment booking, patient profiles, staff operations, and admin management for Contai B.B. Health Clinic."
+version = "1.0.0"
+id = "artifacts/clinic-platform"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21299
+
+[services.development]
+run = "pnpm --filter @workspace/clinic-platform run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/clinic-platform", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/clinic-platform/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21299"
+BASE_PATH = "/"
