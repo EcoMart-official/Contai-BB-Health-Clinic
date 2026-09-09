@@ -2,17 +2,28 @@
   "name": "workspace",
   "version": "0.0.0",
   "license": "MIT",
+  "workspaces": [
+    "artifacts/*",
+    "lib/*",
+    "scripts"
+  ],
   "scripts": {
-    "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
-    "build": "pnpm run typecheck && pnpm -r --if-present run build",
+    "dev": "npm run dev --workspace=@workspace/api-server",
+    "build": "npm run build --workspace=@workspace/clinic-platform && npm run build --workspace=@workspace/api-server",
+    "start": "npm run start --workspace=@workspace/api-server",
     "typecheck:libs": "tsc --build",
-    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
+    "typecheck": "npm run typecheck:libs && npm run typecheck --workspace=@workspace/api-server && npm run typecheck --workspace=@workspace/clinic-platform",
+    "lint": "npm run typecheck"
   },
   "private": true,
   "dependencies": {
-    "@replit/connectors-sdk": "^0.4.1"
+    "@replit/connectors-sdk": "^0.4.1",
+    "@types/canvas-confetti": "^1.9.0",
+    "better-sqlite3": "^13.0.3",
+    "canvas-confetti": "^1.9.4"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
     "prettier": "^3.9.6",
     "typescript": "~5.9.3"
   }

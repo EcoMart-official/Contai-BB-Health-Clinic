@@ -12,52 +12,9 @@ import {
   UpdateAppointmentBody,
   UpdateAppointmentResponse,
 } from "@workspace/api-zod";
-import { doctors } from "./clinic";
+import { db, appointmentsTable, eq } from "@workspace/db";
 
 const router: IRouter = Router();
-
-type Appointment = {
-  id: string;
-  patientId: string;
-  patientName: string;
-  phone: string;
-  doctorId: string;
-  doctorName: string;
-  department: string;
-  date: string;
-  time: string;
-  status: string;
-  reason: string;
-};
-
-const appointments: Appointment[] = [
-  {
-    id: "apt-1001",
-    patientId: "patient-demo",
-    patientName: "Ananya Das",
-    phone: "+91 98765 43210",
-    doctorId: "kamal-poddar",
-    doctorName: "Dr. Kamal Poddar",
-    department: "General Medicine",
-    date: "2026-09-12",
-    time: "10:30 AM",
-    status: "confirmed",
-    reason: "Routine follow-up",
-  },
-  {
-    id: "apt-1002",
-    patientId: "patient-demo",
-    patientName: "Ananya Das",
-    phone: "+91 98765 43210",
-    doctorId: "suman-sarangi",
-    doctorName: "Dr. Suman Sarangi",
-    department: "Neuropsychiatry",
-    date: "2026-09-20",
-    time: "09:00 AM",
-    status: "pending",
-    reason: "Consultation",
-  },
-];
 
 const challenges = new Map<string, { phone: string; createdAt: number; code: string }>();
 
@@ -68,7 +25,6 @@ router.post("/booking/otp/request", (req, res): void => {
     return;
   }
   const challengeId = `challenge-${Date.now()}`;
-  // Fixed preview OTP requested for this build. No real WhatsApp/SMS message is sent.
   challenges.set(challengeId, { phone: parsed.data.phone, createdAt: Date.now(), code: "123456" });
   res.json(
     RequestOtpResponse.parse({
@@ -100,7 +56,9 @@ router.get("/booking/appointments", (req, res): void => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  res.json(GetAppointmentsResponse.parse(appointments.filter((item) => item.patientId === parsed.data.patientId)));
+
+  const rows = db.select().from(appointmentsTable).where(eq(appointmentsTable.patientId, parsed.data.patientId)).all();
+  res.json(GetAppointmentsResponse.parse(rows));
 });
 
 router.post("/booking/appointments", (req, res): void => {
@@ -109,9 +67,24 @@ router.post("/booking/appointments", (req, res): void => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const appointment = { id: `apt-${Date.now()}`, ...parsed.data, status: "pending" };
-  appointments.unshift(appointment);
-  res.status(201).json(CreateAppointmentResponse.parse(appointment));
+
+  const id = `apt-${Date.now()}`;
+  const newApt = {
+    id,
+    patientId: parsed.data.patientId,
+    patientName: parsed.data.patientName,
+    phone: parsed.data.phone,
+    doctorId: parsed.data.doctorId,
+    doctorName: parsed.data.doctorName,
+    department: parsed.data.department,
+    date: parsed.data.date,
+    time: parsed.data.time,
+    status: "pending",
+    reason: parsed.data.reason,
+  };
+
+  db.insert(appointmentsTable).values(newApt).run();
+  res.status(201).json(CreateAppointmentResponse.parse(newApt));
 });
 
 router.patch("/booking/appointments/:id", (req, res): void => {
@@ -121,14 +94,22 @@ router.patch("/booking/appointments/:id", (req, res): void => {
     res.status(400).json({ error: "Invalid appointment update." });
     return;
   }
-  const appointment = appointments.find((item) => item.id === params.data.id);
-  if (!appointment) {
+
+  const existing = db.select().from(appointmentsTable).where(eq(appointmentsTable.id, params.data.id)).get();
+  if (!existing) {
     res.status(404).json({ error: "Appointment not found." });
     return;
   }
-  Object.assign(appointment, body.data);
-  res.json(UpdateAppointmentResponse.parse(appointment));
+
+  const updateData: Partial<typeof existing> = {};
+  if (body.data.status) updateData.status = body.data.status;
+  if (body.data.date) updateData.date = body.data.date;
+  if (body.data.time) updateData.time = body.data.time;
+
+  db.update(appointmentsTable).set(updateData).where(eq(appointmentsTable.id, params.data.id)).run();
+  const updated = db.select().from(appointmentsTable).where(eq(appointmentsTable.id, params.data.id)).get();
+
+  res.json(UpdateAppointmentResponse.parse(updated));
 });
 
-export { appointments };
 export default router;

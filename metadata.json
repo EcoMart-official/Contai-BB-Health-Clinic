@@ -1,0 +1,10 @@
+{
+  "name": "Contai B.B. Health Clinic",
+  "description": "Contai B.B. Health Clinic care platform, doctor schedules, diagnostics, and appointments.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

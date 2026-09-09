@@ -1,19 +1,22 @@
 import { Router, type IRouter } from "express";
 import { GetOperationsSummaryResponse } from "@workspace/api-zod";
-import { appointments } from "./booking";
-import { doctors } from "./clinic";
+import { db, appointmentsTable, doctorsTable } from "@workspace/db";
 
 const router: IRouter = Router();
 
 router.get("/operations/summary", (_req, res): void => {
-  const confirmed = appointments.filter((appointment) => appointment.status === "confirmed");
+  const allAppointments = db.select().from(appointmentsTable).all();
+  const allDoctors = db.select().from(doctorsTable).all();
+
+  const today = new Date().toISOString().split("T")[0];
+
   res.json(
     GetOperationsSummaryResponse.parse({
-      todayAppointments: appointments.filter((appointment) => appointment.date === "2026-09-08").length,
-      pendingRequests: appointments.filter((appointment) => appointment.status === "pending").length,
-      activeDoctors: doctors.length,
+      todayAppointments: allAppointments.filter((appointment) => appointment.date === today).length,
+      pendingRequests: allAppointments.filter((appointment) => appointment.status === "pending").length,
+      activeDoctors: allDoctors.length,
       completedThisMonth: 42,
-      recentAppointments: appointments.slice(0, 5),
+      recentAppointments: allAppointments.slice(0, 5),
     }),
   );
 });

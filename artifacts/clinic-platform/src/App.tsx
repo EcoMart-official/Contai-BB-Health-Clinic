@@ -1,347 +1,59 @@
-import { useEffect, useMemo, useState } from 'react';
-import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
-import { ErrorBoundary } from '@/components/error-boundary';
-import { Toaster } from '@/components/ui/toaster';
-import { TooltipProvider } from '@/components/ui/tooltip';
-import {
-  Activity, ArrowRight, CalendarDays, Check, ChevronDown, ChevronRight, Clock3,
-  FileText, HeartPulse, Hospital, LocateFixed, Mail, MapPin, Menu, Microscope,
-  Phone, Play, ShieldCheck, Stethoscope, Syringe, TestTube2, UserRound, UsersRound,
-  X, BriefcaseMedical, ClipboardList, RefreshCw, AlertCircle, LogOut, CircleHelp,
-} from 'lucide-react';
-import { Link, Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
-import {
-  getGetAppointmentsQueryKey,
-  getGetClinicOverviewQueryKey,
-  getGetDepartmentsQueryKey,
-  getGetDoctorsQueryKey,
-  getGetFaqsQueryKey,
-  getGetGalleryQueryKey,
-  getGetOperationsSummaryQueryKey,
-  getGetServicesQueryKey,
-  useCreateAppointment,
-  useGetAppointments,
-  useGetClinicOverview,
-  useGetDepartments,
-  useGetDoctors,
-  useGetFaqs,
-  useGetGallery,
-  useGetOperationsSummary,
-  useGetServices,
-  useRequestOtp,
-  useUpdateAppointment,
-  useVerifyOtp,
-} from '@workspace/api-client-react';
-import type {
-  Appointment, AppointmentInput, ClinicOverview, ClinicService, Department, Doctor, Faq,
-  GalleryItem, OperationsSummary,
-} from '@workspace/api-client-react';
-import logo from '@assets/clinic/logo.png';
-import patientHall from '@assets/clinic/patient-hall.png';
-import labTesting from '@assets/clinic/lab-testing.webp';
-import NotFound from '@/pages/not-found';
+import { Switch, Route, useLocation } from 'wouter';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from '@/lib/queryClient';
+import { LanguageProvider } from '@/lib/language-context';
+import { AlertProvider } from '@/lib/alert-context';
+import { Header } from '@/components/Header';
+import { Footer } from '@/components/Footer';
 
-const queryClient = new QueryClient();
+import { Home } from '@/pages/Home';
+import { Doctors } from '@/pages/Doctors';
+import { Services } from '@/pages/Services';
+import { Packages } from '@/pages/Packages';
+import { About } from '@/pages/About';
+import { Contact } from '@/pages/Contact';
+import { Gallery } from '@/pages/Gallery';
+import { Booking } from '@/pages/Booking';
+import { PatientPortal } from '@/pages/PatientPortal';
+import { AdminDashboard } from '@/pages/AdminDashboard';
 
-const fallbackOverview: ClinicOverview = {
-  name: 'Contai B.B. Health Clinic',
-  tagline: 'High-confidence care, close to home.',
-  description: 'A trusted local care destination in Padmapukuria, Contai, bringing specialist consultations, digital diagnostics and thoughtful follow-through under one roof.',
-  address: 'Padmapukuria, Contai, Purba Medinipur, West Bengal',
-  emergencyPhone: '8978933511',
-  email: 'contaibbhealthclinic@gmail.com',
-  highlights: ['State-recognized diagnostic centre', 'Digital lab & pathology', 'Weekly visiting specialists', 'X-Ray, ECG and USG'],
-  image: patientHall,
-};
-
-const fallbackDoctors: Doctor[] = [
-  { id: 'suman-sarangi', name: 'Dr Suman Sarangi', specialty: 'General Medicine', credentials: 'MBBS', schedule: 'Sunday · 08:30–10:30', bio: 'A calm, practical first point of care for adults and families.', image: '' },
-  { id: 'kamal-poddar', name: 'Dr Kamal Poddar', specialty: 'Medicine & Diabetes', credentials: 'MBBS, MD', schedule: 'Saturday · 10:00 onward', bio: 'Focused consultations for long-term health, diabetes and everyday concerns.', image: '' },
-  { id: 'saikat-maity', name: 'Dr Saikat Maity', specialty: 'Child Health', credentials: 'MBBS, DCH', schedule: 'Sunday · 14:00 onward', bio: 'Warm, attentive care for children and the questions that come with growing up.', image: '' },
-  { id: 'rakesh-mohanty', name: 'Dr Rakesh Mohanty', specialty: 'Visiting Specialist', credentials: 'By appointment', schedule: 'Appointment-based', bio: 'Specialist access coordinated around your family’s needs.', image: '' },
-];
-
-const fallbackDepartments: Department[] = [
-  { id: 'medicine', name: 'General Medicine', summary: 'Everyday illness, preventive reviews and long-term health support.', icon: 'activity' },
-  { id: 'child-health', name: 'Child Health', summary: 'Thoughtful consultations for infants, children and adolescents.', icon: 'heart' },
-  { id: 'pathology', name: 'Pathology & Digital Lab', summary: 'Reliable sampling and digital reporting for informed decisions.', icon: 'test' },
-  { id: 'imaging', name: 'Imaging & Cardiac Tests', summary: 'X-Ray, ECG and USG support when you need clarity quickly.', icon: 'scan' },
-];
-
-const fallbackServices: ClinicService[] = [
-  { id: 'pathology', name: 'Digital Pathology', description: 'A modern digital lab for everyday and specialist-requested tests.', category: 'Diagnostics' },
-  { id: 'xray', name: 'X-Ray', description: 'Convenient imaging support with clear, carefully handled reports.', category: 'Diagnostics' },
-  { id: 'ecg', name: 'ECG', description: 'A quick, essential look at your heart rhythm in a calm setting.', category: 'Diagnostics' },
-  { id: 'usg', name: 'USG', description: 'Ultrasonography services coordinated with clinical guidance.', category: 'Diagnostics' },
-  { id: 'consultations', name: 'Specialist Consultations', description: 'Weekly visiting doctors, with transparent schedules and phone support.', category: 'Clinical care' },
-  { id: 'health-check', name: 'Preventive Health Checks', description: 'Curated checks that make routine care easier to start and sustain.', category: 'Wellness' },
-];
-
-const fallbackFaqs: Faq[] = [
-  { id: 'booking', question: 'Do I need an account to browse the clinic?', answer: 'No. All public information is open to browse. Phone verification starts only when you choose to book or view patient appointments.' },
-  { id: 'reports', question: 'How do I receive a diagnostic report?', answer: 'Our team will guide you on report collection or digital sharing depending on the test and the information provided at reception.' },
-  { id: 'specialists', question: 'When do visiting specialists come?', answer: 'Dr Suman Sarangi visits Sunday 08:30–10:30, Dr Kamal Poddar Saturday from 10:00, Dr Saikat Maity Sunday from 14:00, and Dr Rakesh Mohanty by appointment.' },
-  { id: 'emergency', question: 'What should I do in an emergency?', answer: 'Call 8978933511 for immediate guidance. For life-threatening symptoms, contact local emergency services without delay.' },
-];
-
-function cx(...classes: Array<string | false | undefined>) {
-  return classes.filter(Boolean).join(' ');
-}
-
-function LoadingBlock({ lines = 3 }: { lines?: number }) {
-  return <div className="space-y-3" data-testid="loading-skeleton">{Array.from({ length: lines }).map((_, index) => <div className={cx('skeleton h-4 rounded-full', index === 0 ? 'w-2/3' : 'w-full')} key={index} />)}</div>;
-}
-
-function ErrorState({ onRetry }: { onRetry?: () => void }) {
-  return <div className="rounded-2xl border border-[hsl(var(--accent)/.28)] bg-[hsl(var(--accent)/.08)] p-6 text-center" data-testid="status-error">
-    <AlertCircle className="mx-auto mb-2 h-7 w-7 text-[hsl(var(--accent))]" />
-    <p className="font-display font-semibold">We could not load this right now.</p>
-    <p className="mt-1 text-sm text-muted-foreground">Please try again or call the clinic for help.</p>
-    {onRetry && <button data-testid="button-retry" onClick={onRetry} className="mt-4 inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"><RefreshCw className="h-4 w-4" /> Try again</button>}
-  </div>;
-}
-
-function LogoLockup({ compact = false }: { compact?: boolean }) {
-  return <Link href="/" className="flex items-center gap-3" data-testid="link-logo">
-    <img src={logo} alt="Contai B.B. Health Clinic logo" className={cx('rounded-full object-cover shadow-sm', compact ? 'h-10 w-10' : 'h-12 w-12')} />
-    {!compact && <span className="font-display text-sm font-extrabold leading-tight text-primary">Contai B.B.<br /><span className="font-sans text-[11px] font-semibold tracking-[.15em] text-muted-foreground">HEALTH CLINIC</span></span>}
-  </Link>;
-}
-
-function Header() {
-  const [open, setOpen] = useState(false);
+export function App() {
   const [location] = useLocation();
-  const nav = [['About', '/about'], ['Doctors', '/doctors'], ['Departments', '/departments'], ['Services', '/services'], ['Packages', '/packages'], ['Gallery', '/gallery'], ['FAQs', '/faqs']];
-  return <header className="sticky top-0 z-30 border-b border-border/70 bg-[hsl(var(--background)/.92)] backdrop-blur-xl">
-    <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-3 lg:px-8">
-      <LogoLockup />
-      <nav className="hidden items-center gap-5 xl:flex">
-        {nav.map(([label, href]) => <Link key={href} href={href} data-testid={`link-nav-${label.toLowerCase()}`} className={cx('text-sm font-semibold transition-colors hover:text-primary', location === href ? 'text-primary' : 'text-muted-foreground')}>{label}</Link>)}
-      </nav>
-      <div className="hidden items-center gap-2 md:flex">
-        <Link href="/patient" data-testid="link-patient-portal" className="rounded-full border border-border px-4 py-2 text-sm font-semibold text-primary transition hover:border-primary/50 hover:bg-secondary">Patient portal</Link>
-        <Link href="/book" data-testid="link-header-book" className="group inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground shadow-card transition hover:-translate-y-0.5 hover:bg-[hsl(205_75%_24%)]">Book a visit <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" /></Link>
-      </div>
-      <button className="rounded-xl p-2 text-primary md:hidden" onClick={() => setOpen(!open)} data-testid="button-mobile-menu" aria-label="Toggle navigation">{open ? <X /> : <Menu />}</button>
-    </div>
-    {open && <div className="border-t border-border bg-background px-5 pb-4 pt-2 md:hidden">
-      <div className="grid gap-1">{nav.map(([label, href]) => <Link key={href} href={href} onClick={() => setOpen(false)} data-testid={`link-mobile-${label.toLowerCase()}`} className="rounded-lg px-3 py-2.5 text-sm font-semibold text-muted-foreground hover:bg-secondary hover:text-primary">{label}</Link>)}</div>
-      <div className="mt-3 flex gap-2"><Link href="/patient" className="flex-1 rounded-full border border-border px-3 py-2 text-center text-sm font-bold text-primary">Patient portal</Link><Link href="/book" className="flex-1 rounded-full bg-primary px-3 py-2 text-center text-sm font-bold text-primary-foreground">Book a visit</Link></div>
-    </div>}
-  </header>;
-}
+  const isAdminView = location.startsWith('/admin') || location.startsWith('/app');
 
-function Footer() {
-  return <footer className="mt-24 bg-primary text-primary-foreground">
-    <div className="mx-auto grid max-w-7xl gap-10 px-5 py-14 md:grid-cols-[1.2fr_.8fr_.8fr] lg:px-8">
-      <div><LogoLockup compact /><p className="mt-5 max-w-sm text-sm leading-7 text-primary-foreground/70">Specialist consultations, diagnostics and patient-first guidance for families in Contai.</p><div className="mt-6 flex flex-wrap gap-2"><Link href="/book" className="rounded-full bg-[hsl(var(--accent))] px-4 py-2 text-sm font-bold text-foreground">Start a booking</Link><a href="tel:8978933511" className="rounded-full border border-primary-foreground/25 px-4 py-2 text-sm font-bold">Call emergency line</a></div></div>
-      <div><p className="font-mono-ui text-[10px] uppercase tracking-[.18em] text-[hsl(var(--sidebar-primary))]">Explore</p><div className="mt-4 grid gap-2 text-sm text-primary-foreground/75"><Link href="/about">Our clinic</Link><Link href="/doctors">Visiting specialists</Link><Link href="/services">Diagnostics</Link><Link href="/gallery">Gallery</Link></div></div>
-      <div><p className="font-mono-ui text-[10px] uppercase tracking-[.18em] text-[hsl(var(--sidebar-primary))]">Find us</p><p className="mt-4 text-sm leading-6 text-primary-foreground/75">Padmapukuria, Contai<br />Purba Medinipur, West Bengal</p><a href="mailto:contaibbhealthclinic@gmail.com" className="mt-3 block text-sm text-[hsl(var(--sidebar-primary))]">contaibbhealthclinic@gmail.com</a></div>
-    </div>
-    <div className="border-t border-primary-foreground/10 px-5 py-5 text-center text-xs text-primary-foreground/50">© {new Date().getFullYear()} Contai B.B. Health Clinic · Public information does not require login.</div>
-  </footer>;
-}
-
-function Shell({ children }: { children: React.ReactNode }) {
-  return <div className="min-h-[100dvh]"><Header />{children}<Footer /></div>;
-}
-
-function SectionIntro({ eyebrow, title, text, align = 'left' }: { eyebrow: string; title: string; text: string; align?: 'left' | 'center' }) {
-  return <div className={cx('max-w-2xl', align === 'center' && 'mx-auto text-center')}><p className="font-mono-ui text-[10px] font-bold uppercase tracking-[.22em] text-[hsl(var(--accent))]">{eyebrow}</p><h2 className="mt-3 font-display text-3xl font-extrabold tracking-[-.04em] text-primary md:text-5xl">{title}</h2><p className="mt-4 text-base leading-7 text-muted-foreground">{text}</p></div>;
-}
-
-function Hero({ overview }: { overview: ClinicOverview }) {
-  return <section className="relative overflow-hidden bg-[hsl(var(--secondary)/.52)]">
-    <div className="mx-auto grid max-w-7xl gap-10 px-5 pb-16 pt-12 lg:grid-cols-[1.04fr_.96fr] lg:items-center lg:px-8 lg:pb-24 lg:pt-20">
-      <div className="relative z-10 page-enter">
-        <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-primary/15 bg-background/70 px-3 py-1.5 font-mono-ui text-[10px] font-bold uppercase tracking-[.16em] text-primary"><span className="h-2 w-2 rounded-full bg-[hsl(var(--accent))]" /> Open for local care</div>
-        <h1 className="max-w-2xl font-display text-5xl font-extrabold leading-[.98] tracking-[-.07em] text-primary md:text-7xl">Care that feels <span className="text-[hsl(var(--accent))]">close.</span></h1>
-        <p className="mt-6 max-w-xl text-lg leading-8 text-foreground/70">{overview.description}</p>
-        <div className="mt-8 flex flex-wrap gap-3"><Link href="/book" data-testid="link-hero-book" className="group inline-flex items-center gap-3 rounded-full bg-primary px-6 py-3.5 text-sm font-bold text-primary-foreground shadow-soft transition hover:-translate-y-1">Book a consultation <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" /></Link><a href="tel:8978933511" data-testid="link-hero-call" className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-background/70 px-5 py-3.5 text-sm font-bold text-primary"><Phone className="h-4 w-4" /> {overview.emergencyPhone}</a></div>
-        <div className="mt-10 flex items-center gap-4 border-l-2 border-[hsl(var(--accent))] pl-4"><ShieldCheck className="h-6 w-6 text-primary" /><p className="text-sm leading-5 text-muted-foreground"><strong className="text-foreground">State-recognized diagnostic centre</strong><br />with a digital lab and weekly visiting specialists.</p></div>
-      </div>
-      <div className="relative rise-in delay-2">
-        <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full border border-[hsl(var(--accent)/.35)]" /><div className="absolute -bottom-8 -left-8 h-32 w-32 rounded-full bg-[hsl(var(--accent)/.16)]" />
-        <div className="relative overflow-hidden rounded-[2rem] border-[10px] border-background bg-primary shadow-soft"><img src={overview.image || patientHall} alt="Inside Contai B.B. Health Clinic" className="h-[330px] w-full object-cover md:h-[460px]" /><div className="absolute bottom-4 left-4 right-4 flex items-center justify-between rounded-2xl border border-white/20 bg-primary/85 p-4 text-primary-foreground backdrop-blur"><div><p className="font-display font-bold">Padmapukuria, Contai</p><p className="mt-1 text-xs text-primary-foreground/70">A familiar place to begin.</p></div><MapPin className="h-5 w-5 text-[hsl(var(--sidebar-primary))]" /></div></div>
-      </div>
-    </div>
-  </section>;
-}
-
-function QuickStrip() {
-  return <section className="border-b border-border bg-background"><div className="mx-auto grid max-w-7xl divide-y divide-border px-5 md:grid-cols-4 md:divide-x md:divide-y-0 lg:px-8">{[['01', 'Consultations', 'Weekly visiting doctors'], ['02', 'Digital diagnostics', 'Pathology & reports'], ['03', 'Imaging', 'X-Ray · ECG · USG'], ['04', 'Talk to us', '8978933511']].map(([n, title, text]) => <div className="flex items-center gap-4 py-5 md:px-6 md:first:pl-0" key={n}><span className="font-mono-ui text-xs text-[hsl(var(--accent))]">{n}</span><div><p className="font-display text-sm font-bold text-primary">{title}</p><p className="mt-1 text-xs text-muted-foreground">{text}</p></div></div>)}</div></section>;
-}
-
-function Home() {
-  const overviewQuery = useGetClinicOverview({ query: { queryKey: getGetClinicOverviewQueryKey() } });
-  const deptQuery = useGetDepartments({ query: { queryKey: getGetDepartmentsQueryKey() } });
-  const doctorsQuery = useGetDoctors({ query: { queryKey: getGetDoctorsQueryKey() } });
-  const overview = overviewQuery.data || fallbackOverview;
-  const departments = deptQuery.data || fallbackDepartments;
-  const doctors = doctorsQuery.data || fallbackDoctors;
-  return <Shell><main className="page-enter"><Hero overview={overview} /><QuickStrip /><section className="mx-auto grid max-w-7xl gap-12 px-5 py-20 lg:grid-cols-[.8fr_1.2fr] lg:px-8"><SectionIntro eyebrow="A better first step" title="Good care begins with being heard." text="From a first symptom to a routine check, our team keeps the next step clear. You can browse freely, call us when you need a human answer, and book only when you are ready." /><div className="grid gap-3 sm:grid-cols-2">{departments.slice(0, 4).map((department, i) => <Link href="/departments" key={department.id} data-testid={`card-department-${department.id}`} className="group rounded-2xl border border-border bg-card p-5 shadow-card transition hover:-translate-y-1 hover:border-primary/30"><div className="flex items-center justify-between"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary text-primary">{i === 0 ? <Activity className="h-5 w-5" /> : i === 1 ? <HeartPulse className="h-5 w-5" /> : i === 2 ? <TestTube2 className="h-5 w-5" /> : <Microscope className="h-5 w-5" />}</span><ArrowRight className="h-4 w-4 text-muted-foreground transition group-hover:translate-x-1 group-hover:text-primary" /></div><h3 className="mt-5 font-display font-bold text-primary">{department.name}</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">{department.summary}</p></Link>)}</div></section><section className="bg-primary text-primary-foreground"><div className="mx-auto grid max-w-7xl gap-10 px-5 py-20 lg:grid-cols-[.8fr_1.2fr] lg:px-8"><div><SectionIntro eyebrow="Meet the visiting team" title="Specialists, on a schedule you can plan around." text="Weekly visits make expert conversations easier to reach in Contai. Choose a doctor, see their rhythm, then start a verified booking." /><Link href="/doctors" className="mt-7 inline-flex items-center gap-2 text-sm font-bold text-[hsl(var(--sidebar-primary))]">See doctor schedules <ArrowRight className="h-4 w-4" /></Link></div><div className="grid gap-3 sm:grid-cols-2">{doctors.slice(0, 4).map((doctor) => <div key={doctor.id} className="rounded-2xl border border-primary-foreground/15 bg-primary-foreground/5 p-5 transition hover:bg-primary-foreground/10"><div className="flex items-start justify-between gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-full bg-[hsl(var(--sidebar-primary)/.17)] text-[hsl(var(--sidebar-primary))]"><Stethoscope className="h-5 w-5" /></span><span className="rounded-full bg-[hsl(var(--sidebar-primary)/.14)] px-2 py-1 font-mono-ui text-[9px] text-[hsl(var(--sidebar-primary))]">VISITING</span></div><h3 className="mt-5 font-display font-bold">{doctor.name}</h3><p className="mt-1 text-sm text-primary-foreground/65">{doctor.specialty}</p><p className="mt-4 flex items-center gap-2 text-xs text-primary-foreground/75"><Clock3 className="h-3.5 w-3.5 text-[hsl(var(--sidebar-primary))]" /> {doctor.schedule}</p></div>)}</div></div></section><section className="mx-auto max-w-7xl px-5 py-20 lg:px-8"><div className="grid items-center gap-10 lg:grid-cols-[1.1fr_.9fr]"><div className="overflow-hidden rounded-[2rem] bg-secondary shadow-card"><img src={labTesting} alt="Technician working in the clinic laboratory" className="h-[330px] w-full object-cover md:h-[420px]" /></div><div><SectionIntro eyebrow="Clarity in the details" title="Diagnostics with a calmer hand." text="Our digital lab, pathology, X-Ray, ECG and USG services are designed to make an important day feel a little more manageable. Ask our team what you need and what happens next." /><div className="mt-8 flex flex-wrap gap-2">{['Digital lab', 'Pathology', 'X-Ray', 'ECG', 'USG'].map((item) => <span key={item} className="rounded-full border border-border bg-card px-3 py-2 text-xs font-semibold text-primary">{item}</span>)}</div><Link href="/services" className="mt-8 inline-flex items-center gap-2 rounded-full bg-secondary px-5 py-3 text-sm font-bold text-primary transition hover:bg-[hsl(var(--secondary)/.7)]">Explore services <ArrowRight className="h-4 w-4" /></Link></div></div></section><section className="mx-auto max-w-7xl px-5 pb-20 lg:px-8"><div className="rounded-[2rem] bg-[hsl(var(--accent)/.12)] px-6 py-10 md:px-12"><div className="grid items-center gap-7 md:grid-cols-[1fr_auto]"><div><p className="font-mono-ui text-[10px] uppercase tracking-[.18em] text-[hsl(var(--accent))]">Your next step</p><h2 className="mt-3 font-display text-3xl font-extrabold tracking-[-.04em] text-primary md:text-4xl">Start when it feels right.</h2><p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground">Browsing is open to everyone. Booking takes a quick phone verification so your appointments stay connected to you.</p></div><Link href="/book" className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-6 py-3.5 text-sm font-bold text-primary-foreground">Book a consultation <ArrowRight className="h-4 w-4" /></Link></div></div></section></main></Shell>;
-}
-
-function DataPage({ title, eyebrow, intro, children }: { title: string; eyebrow: string; intro: string; children: React.ReactNode }) {
-  return <Shell><main className="page-enter"><section className="bg-[hsl(var(--secondary)/.5)]"><div className="mx-auto max-w-7xl px-5 py-16 lg:px-8 lg:py-24"><SectionIntro eyebrow={eyebrow} title={title} text={intro} /></div></section>{children}</main></Shell>;
-}
-
-function About() {
-  const q = useGetClinicOverview({ query: { queryKey: getGetClinicOverviewQueryKey() } }); const o = q.data || fallbackOverview;
-  return <DataPage eyebrow="The clinic behind the care" title="A steady place for important health decisions." intro={o.description}><section className="mx-auto grid max-w-7xl gap-10 px-5 py-16 lg:grid-cols-[1.1fr_.9fr] lg:px-8"><div className="overflow-hidden rounded-[2rem]"><img src={patientHall} alt="Patient hall at Contai B.B. Health Clinic" className="h-full min-h-[300px] w-full object-cover" /></div><div className="space-y-4"><InfoCard icon={<HeartPulse />} title="Our mission" text="To make trustworthy healthcare easier to reach for the families of Contai, combining clinical skill with a clear, respectful experience." /><InfoCard icon={<ShieldCheck />} title="Our quality promise" text="We keep the essentials visible: recognized diagnostics, careful reports, transparent visiting schedules and a team ready to answer questions." /><InfoCard icon={<UsersRound />} title="Our way of working" text="Calm rooms, honest guidance and no unnecessary complexity. We look after the person, not just the appointment." /></div></section><section className="mx-auto max-w-7xl px-5 pb-16 lg:px-8"><div className="rounded-[2rem] bg-primary p-8 text-primary-foreground md:p-12"><p className="font-mono-ui text-[10px] uppercase tracking-[.2em] text-[hsl(var(--sidebar-primary))]">What you can count on</p><div className="mt-8 grid gap-8 sm:grid-cols-3">{['Local access', 'Clear next steps', 'Clinical confidence'].map((item, i) => <div key={item} className="border-l border-primary-foreground/20 pl-5"><span className="font-mono-ui text-xs text-[hsl(var(--sidebar-primary))]">0{i + 1}</span><h3 className="mt-3 font-display text-lg font-bold">{item}</h3><p className="mt-2 text-sm leading-6 text-primary-foreground/65">{['Care designed around the people who live here.', 'A human explanation before you leave.', 'Trusted services for everyday and specialist needs.'][i]}</p></div>)}</div></div></section></DataPage>;
-}
-
-function InfoCard({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) {
-  return <div className="rounded-2xl border border-border bg-card p-5 shadow-card"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary text-primary">{icon}</div><h3 className="mt-4 font-display font-bold text-primary">{title}</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">{text}</p></div>;
-}
-
-function Doctors() {
-  const q = useGetDoctors({ query: { queryKey: getGetDoctorsQueryKey() } }); const doctors = q.data || fallbackDoctors;
-  return <DataPage eyebrow="Visiting specialists" title="The right conversation, at the right time." intro="Our visiting schedule brings specialist expertise closer to home. Call if you need help confirming a slot."><div className="mx-auto grid max-w-7xl gap-4 px-5 py-16 md:grid-cols-2 lg:grid-cols-4 lg:px-8">{doctors.map((doctor) => <article key={doctor.id} className="group flex flex-col rounded-[1.5rem] border border-border bg-card p-5 shadow-card transition hover:-translate-y-1 hover:border-primary/30"><div className="flex h-24 items-end justify-between overflow-hidden rounded-2xl bg-secondary px-5"><UserRound className="h-20 w-20 translate-y-3 text-primary/30" /><span className="mb-3 rounded-full bg-background/70 px-2 py-1 font-mono-ui text-[9px] font-bold text-primary">VISITING</span></div><h2 className="mt-5 font-display text-lg font-extrabold text-primary">{doctor.name}</h2><p className="mt-1 text-sm font-semibold text-[hsl(var(--accent))]">{doctor.specialty}</p><p className="mt-2 font-mono-ui text-[10px] text-muted-foreground">{doctor.credentials}</p><p className="mt-5 flex items-start gap-2 border-t border-border pt-4 text-xs font-semibold leading-5 text-primary"><Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-[hsl(var(--accent))]" /> {doctor.schedule}</p><p className="mt-3 flex-1 text-sm leading-6 text-muted-foreground">{doctor.bio}</p><Link href="/book" data-testid={`link-book-doctor-${doctor.id}`} className="mt-5 inline-flex items-center justify-center gap-2 rounded-full bg-secondary px-4 py-2.5 text-xs font-bold text-primary transition group-hover:bg-primary group-hover:text-primary-foreground">Book with this doctor <ArrowRight className="h-3.5 w-3.5" /></Link></article>)}</div></DataPage>;
-}
-
-function Departments() {
-  const q = useGetDepartments({ query: { queryKey: getGetDepartmentsQueryKey() } }); const list = q.data || fallbackDepartments;
-  return <DataPage eyebrow="Care, organized around you" title="One clinic, several ways to help." intro="Find the kind of support you need, then let our team guide the details."><div className="mx-auto grid max-w-7xl gap-4 px-5 py-16 md:grid-cols-2 lg:px-8">{list.map((d, i) => <div key={d.id} className="group grid gap-6 rounded-[1.5rem] border border-border bg-card p-6 shadow-card transition hover:border-primary/30 md:grid-cols-[auto_1fr_auto] md:items-center"><div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-secondary text-primary">{[<Activity />, <HeartPulse />, <TestTube2 />, <Microscope />][i % 4]}</div><div><h2 className="font-display text-xl font-extrabold text-primary">{d.name}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{d.summary}</p></div><Link href="/book" className="inline-flex items-center gap-2 text-sm font-bold text-primary">Ask the team <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" /></Link></div>)}</div></DataPage>;
-}
-
-function Services() {
-  const q = useGetServices({ query: { queryKey: getGetServicesQueryKey() } }); const list = q.data || fallbackServices;
-  const categories = Array.from(new Set(list.map((x) => x.category)));
-  return <DataPage eyebrow="Diagnostics & clinical services" title="Clear answers, carefully delivered." intro="From a consultation to a report, our services are built to keep your next step understandable."><div className="mx-auto max-w-7xl space-y-10 px-5 py-16 lg:px-8">{categories.map((category) => <div key={category}><div className="mb-4 flex items-center gap-3"><span className="h-px w-8 bg-[hsl(var(--accent))]" /><h2 className="font-mono-ui text-xs font-bold uppercase tracking-[.18em] text-primary">{category}</h2></div><div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">{list.filter((s) => s.category === category).map((service) => <div key={service.id} className="rounded-2xl border border-border bg-card p-6 shadow-card transition hover:-translate-y-1 hover:border-primary/30"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary text-primary">{category === 'Diagnostics' ? <Microscope className="h-5 w-5" /> : <Stethoscope className="h-5 w-5" />}</div><h3 className="mt-5 font-display font-bold text-primary">{service.name}</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">{service.description}</p><Link href="/contact" className="mt-5 inline-flex items-center gap-2 text-xs font-bold text-primary">Ask about this service <ArrowRight className="h-3.5 w-3.5" /></Link></div>)}</div></div>)}</div></DataPage>;
-}
-
-function Packages() {
-  const packs = [{name: 'Essential baseline', eyebrow: 'Start here', text: 'A considered starting point for a routine health conversation.', items: ['Core pathology guidance', 'Doctor consultation planning', 'Digital report support']}, {name: 'Family rhythm', eyebrow: 'For households', text: 'A simple way to bring routine health checks into the year.', items: ['Coordinated family scheduling', 'Pathology & preventive guidance', 'One clear follow-up thread']}, {name: 'Heart & metabolic', eyebrow: 'Stay informed', text: 'For people keeping a closer eye on everyday risk factors.', items: ['ECG coordination', 'Diabetes & medicine conversation', 'Relevant pathology guidance']}];
-  return <DataPage eyebrow="Curated health checks" title="Small routines that protect bigger plans." intro="Packages are designed to make preventive care easier to begin. Speak with the clinic before booking so we can help match the right service to you."><div className="mx-auto grid max-w-7xl gap-4 px-5 py-16 md:grid-cols-3 lg:px-8">{packs.map((pack, i) => <article key={pack.name} className={cx('rounded-[1.5rem] border p-6 shadow-card', i === 1 ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-card')}><p className={cx('font-mono-ui text-[10px] uppercase tracking-[.18em]', i === 1 ? 'text-[hsl(var(--sidebar-primary))]' : 'text-[hsl(var(--accent))]')}>{pack.eyebrow}</p><h2 className={cx('mt-4 font-display text-2xl font-extrabold', i === 1 ? 'text-primary-foreground' : 'text-primary')}>{pack.name}</h2><p className={cx('mt-3 text-sm leading-6', i === 1 ? 'text-primary-foreground/70' : 'text-muted-foreground')}>{pack.text}</p><ul className="mt-7 grid gap-3">{pack.items.map((item) => <li key={item} className={cx('flex gap-2 text-sm', i === 1 ? 'text-primary-foreground/85' : 'text-foreground/75')}><Check className="h-4 w-4 shrink-0 text-[hsl(var(--accent))]" /> {item}</li>)}</ul><Link href="/contact" className={cx('mt-8 inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-bold', i === 1 ? 'bg-[hsl(var(--sidebar-primary))] text-primary' : 'bg-secondary text-primary')}>Talk to the clinic <ArrowRight className="h-4 w-4" /></Link></article>)}</div></DataPage>;
-}
-
-function Gallery() {
-  const q = useGetGallery({ query: { queryKey: getGetGalleryQueryKey() } }); const list = q.data || [{ id: 'hall', title: 'A familiar waiting room', caption: 'A brighter place to begin your visit.', image: patientHall }, { id: 'lab', title: 'Care in the details', caption: 'Digital lab services with a steady hand.', image: labTesting }];
-  return <DataPage eyebrow="Inside the clinic" title="A closer look at your local care destination." intro="The spaces, people and details behind a calmer healthcare visit in Padmapukuria."><div className="mx-auto columns-1 gap-5 px-5 py-16 md:columns-2 lg:max-w-7xl lg:px-8">{list.map((item, i) => <figure key={item.id} className="mb-5 break-inside-avoid overflow-hidden rounded-[1.5rem] border border-border bg-card shadow-card"><img src={item.image || (i % 2 ? labTesting : patientHall)} alt={item.title} className="max-h-[520px] w-full object-cover transition duration-500 hover:scale-[1.02]" /><figcaption className="p-5"><h2 className="font-display font-bold text-primary">{item.title}</h2><p className="mt-1 text-sm text-muted-foreground">{item.caption}</p></figcaption></figure>)}</div></DataPage>;
-}
-
-function Contact() {
-  return <DataPage eyebrow="Talk to a human" title="We are here for the practical questions." intro="Need to confirm a schedule, understand a service or find the clinic? Start with the channel that feels easiest."><div className="mx-auto grid max-w-7xl gap-4 px-5 py-16 md:grid-cols-3 lg:px-8"><a href="tel:8978933511" data-testid="link-contact-phone" className="rounded-[1.5rem] border border-border bg-card p-6 shadow-card transition hover:-translate-y-1 hover:border-primary/30"><Phone className="h-6 w-6 text-[hsl(var(--accent))]" /><p className="mt-6 font-mono-ui text-[10px] uppercase tracking-[.18em] text-muted-foreground">Emergency & phone</p><h2 className="mt-2 font-display text-xl font-extrabold text-primary">8978933511</h2><p className="mt-2 text-sm text-muted-foreground">Call for guidance and schedule questions.</p></a><a href="mailto:contaibbhealthclinic@gmail.com" data-testid="link-contact-email" className="rounded-[1.5rem] border border-border bg-card p-6 shadow-card transition hover:-translate-y-1 hover:border-primary/30"><Mail className="h-6 w-6 text-[hsl(var(--accent))]" /><p className="mt-6 font-mono-ui text-[10px] uppercase tracking-[.18em] text-muted-foreground">Email</p><h2 className="mt-2 break-all font-display text-lg font-extrabold text-primary">contaibbhealthclinic@gmail.com</h2><p className="mt-2 text-sm text-muted-foreground">For general enquiries and career conversations.</p></a><Link href="/directions" data-testid="link-contact-directions" className="rounded-[1.5rem] border border-border bg-card p-6 shadow-card transition hover:-translate-y-1 hover:border-primary/30"><MapPin className="h-6 w-6 text-[hsl(var(--accent))]" /><p className="mt-6 font-mono-ui text-[10px] uppercase tracking-[.18em] text-muted-foreground">Visit</p><h2 className="mt-2 font-display text-xl font-extrabold text-primary">Padmapukuria, Contai</h2><p className="mt-2 text-sm text-muted-foreground">Open directions and plan your journey.</p></Link></div></DataPage>;
-}
-
-function Directions() {
-  const q = useGetClinicOverview({ query: { queryKey: getGetClinicOverviewQueryKey() } }); const o = q.data || fallbackOverview;
-  return <DataPage eyebrow="Find your way here" title="Padmapukuria, Contai." intro="Keep the clinic details close before you set out. If you are unsure, call us and our team will help you orient yourself."><div className="mx-auto grid max-w-7xl gap-5 px-5 py-16 lg:grid-cols-[.7fr_1.3fr] lg:px-8"><div className="rounded-[1.5rem] bg-primary p-7 text-primary-foreground"><MapPin className="h-8 w-8 text-[hsl(var(--sidebar-primary))]" /><h2 className="mt-7 font-display text-2xl font-extrabold">Contai B.B. Health Clinic</h2><p className="mt-3 text-sm leading-7 text-primary-foreground/70">{o.address}</p><a href="tel:8978933511" className="mt-8 inline-flex items-center gap-2 rounded-full bg-[hsl(var(--sidebar-primary))] px-4 py-2.5 text-sm font-bold text-primary"><Phone className="h-4 w-4" /> Call 8978933511</a></div><div className="relative flex min-h-[320px] items-center justify-center overflow-hidden rounded-[1.5rem] border border-border bg-[radial-gradient(circle_at_20%_20%,hsl(var(--secondary)),transparent_35%),linear-gradient(135deg,hsl(var(--muted)),hsl(var(--card)))]"><div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'linear-gradient(hsl(var(--primary)/.1) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--primary)/.1) 1px, transparent 1px)', backgroundSize: '44px 44px' }} /><div className="relative text-center"><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[hsl(var(--accent))] text-primary shadow-soft"><LocateFixed className="h-7 w-7" /></div><p className="mt-4 font-display font-bold text-primary">Your destination</p><p className="mt-1 text-sm text-muted-foreground">Padmapukuria · Contai</p><a href="https://maps.google.com/?q=Padmapukuria%2C%20Contai" target="_blank" rel="noreferrer" className="mt-5 inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground">Open map directions <ArrowRight className="h-3.5 w-3.5" /></a></div></div></div></DataPage>;
-}
-
-function Careers() {
-  return <DataPage eyebrow="Work with us" title="Bring care, competence and curiosity." intro="If you want to help build a more trusted local healthcare experience in Contai, we would like to hear from you."><div className="mx-auto max-w-7xl px-5 py-16 lg:px-8"><div className="grid gap-4 md:grid-cols-3">{[['Clinical teams', 'For doctors, nurses and diagnostic professionals who value patient confidence.'], ['Clinic operations', 'For thoughtful people who make every visit clearer and kinder.'], ['Future opportunities', 'Send an introduction even when you do not see a listed role.']].map(([title, text], i) => <div className="rounded-2xl border border-border bg-card p-6 shadow-card" key={title}><span className="font-mono-ui text-xs text-[hsl(var(--accent))]">0{i + 1}</span><h2 className="mt-5 font-display font-bold text-primary">{title}</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">{text}</p></div>)}</div><div className="mt-12 flex flex-col items-start justify-between gap-6 rounded-[1.5rem] bg-secondary p-7 md:flex-row md:items-center"><div><h2 className="font-display text-2xl font-extrabold text-primary">Start a conversation</h2><p className="mt-2 text-sm text-muted-foreground">Share your background and what kind of work you hope to do.</p></div><a href="mailto:contaibbhealthclinic@gmail.com?subject=Career%20enquiry" className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-3 text-sm font-bold text-primary-foreground">Email your enquiry <ArrowRight className="h-4 w-4" /></a></div></div></DataPage>;
-}
-
-function Faqs() {
-  const q = useGetFaqs({ query: { queryKey: getGetFaqsQueryKey() } }); const list = q.data || fallbackFaqs; const [open, setOpen] = useState<string | null>(list[0]?.id || null);
-  return <DataPage eyebrow="Questions, answered" title="Before you come in, know what to expect." intro="A few practical answers for browsing, booking, visiting specialists and diagnostics."><div className="mx-auto max-w-3xl px-5 py-16 lg:px-8">{list.map((faq) => <div className="border-b border-border" key={faq.id}><button data-testid={`button-faq-${faq.id}`} onClick={() => setOpen(open === faq.id ? null : faq.id)} className="flex w-full items-center justify-between gap-4 py-5 text-left"><span className="font-display text-base font-bold text-primary">{faq.question}</span><ChevronDown className={cx('h-5 w-5 shrink-0 text-muted-foreground transition-transform', open === faq.id && 'rotate-180')} /></button>{open === faq.id && <p className="max-w-2xl pb-6 pr-10 text-sm leading-7 text-muted-foreground">{faq.answer}</p>}</div>)}<div className="mt-10 rounded-2xl bg-secondary p-6"><p className="font-display font-bold text-primary">Still unsure?</p><p className="mt-1 text-sm text-muted-foreground">Call the clinic and ask. That is what our team is here for.</p><a href="tel:8978933511" className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-primary"><Phone className="h-4 w-4" /> 8978933511</a></div></div></DataPage>;
-}
-
-function Booking() {
-  const [step, setStep] = useState(1);
-  const [phone, setPhone] = useState('');
-  const [code, setCode] = useState('123456');
-  const [challenge, setChallenge] = useState<{ challengeId: string; maskedPhone: string; expiresInSeconds: number } | null>(null);
-  const [session, setSession] = useState<{ patientId: string; phone: string; isNew: boolean } | null>(null);
-  const [form, setForm] = useState({ patientName: '', doctorId: '', doctorName: '', department: '', date: '', time: '', reason: '' });
-  const doctorsQ = useGetDoctors({ query: { queryKey: getGetDoctorsQueryKey() } });
-  const depsQ = useGetDepartments({ query: { queryKey: getGetDepartmentsQueryKey() } });
-  const doctors = doctorsQ.data || fallbackDoctors;
-  const departments = depsQ.data || fallbackDepartments;
-  const requestOtp = useRequestOtp();
-  const verifyOtp = useVerifyOtp();
-  const create = useCreateAppointment();
-  const selectedDoctor = doctors.find((doctor) => doctor.id === form.doctorId);
-
-  const submitPhone = (event: React.FormEvent) => {
-    event.preventDefault();
-    if (phone.length < 8) return;
-    requestOtp.mutate({ data: { phone } }, { onSuccess: (result) => { setChallenge(result); setCode('123456'); setStep(2); } });
-  };
-
-  const submitCode = (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!challenge) return;
-    verifyOtp.mutate({ data: { challengeId: challenge.challengeId, phone, code } }, {
-      onSuccess: (result) => {
-        setSession(result);
-        localStorage.setItem('clinicPatientSession', JSON.stringify(result));
-        setStep(3);
-      },
-    });
-  };
-
-  const submitBooking = (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!session || !form.doctorId || !form.date || !form.time || !form.patientName) return;
-    const body: AppointmentInput = { patientId: session.patientId, patientName: form.patientName, phone: session.phone, doctorId: form.doctorId, doctorName: form.doctorName, department: form.department, date: form.date, time: form.time, reason: form.reason };
-    create.mutate({ data: body }, { onSuccess: () => { queryClient.invalidateQueries({ queryKey: getGetAppointmentsQueryKey({ patientId: session.patientId }) }); setStep(4); } });
-  };
-
-  return <Shell><main className="page-enter bg-[hsl(var(--secondary)/.32)]"><div className="mx-auto max-w-5xl px-5 py-12 lg:px-8 lg:py-20">
-    <div className="mb-10"><Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground"><ChevronRight className="h-4 w-4 rotate-180" /> Back to clinic</Link><p className="mt-8 font-mono-ui text-[10px] uppercase tracking-[.2em] text-[hsl(var(--accent))]">Private booking flow</p><h1 className="mt-3 font-display text-4xl font-extrabold tracking-[-.06em] text-primary md:text-6xl">Book with confidence.</h1><p className="mt-4 max-w-xl text-base leading-7 text-muted-foreground">Public browsing is open. We use WhatsApp verification here so your appointment stays connected to you.</p></div>
-    <div className="mb-8 flex items-center gap-2">{['Verify WhatsApp', 'Your details', 'Choose a visit', 'Confirmed'].map((label, index) => <div className="flex flex-1 items-center gap-2" key={label}><div className={cx('flex h-8 w-8 shrink-0 items-center justify-center rounded-full font-mono-ui text-xs font-bold', step > index ? 'bg-primary text-primary-foreground' : 'border border-border bg-card text-muted-foreground')}>{step > index ? <Check className="h-4 w-4" /> : index + 1}</div><span className="hidden text-xs font-semibold text-muted-foreground sm:block">{label}</span>{index < 3 && <div className={cx('h-px flex-1', step > index + 1 ? 'bg-primary' : 'bg-border')} />}</div>)}</div>
-    <div className="rounded-[1.5rem] border border-border bg-card p-6 shadow-soft md:p-10">
-      {step === 1 && <form onSubmit={submitPhone} className="mx-auto max-w-lg"><StepIcon icon={<Phone />} title="First, your WhatsApp number." text="We will send a one-time code to WhatsApp. No password, no account to remember." /><label className="mt-8 block text-sm font-bold text-primary">WhatsApp number<input data-testid="input-booking-phone" type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Enter your WhatsApp number" className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none ring-primary/20 transition focus:ring-4" /></label><button data-testid="button-request-otp" disabled={requestOtp.isPending} className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3.5 text-sm font-bold text-primary-foreground disabled:opacity-60">{requestOtp.isPending ? 'Preparing WhatsApp code…' : 'Send WhatsApp verification code'} <ArrowRight className="h-4 w-4" /></button>{requestOtp.isError && <p className="mt-3 text-sm text-destructive">We could not prepare that code. Please check the number or call us.</p>}</form>}
-      {step === 2 && <form onSubmit={submitCode} className="mx-auto max-w-lg"><StepIcon icon={<ShieldCheck />} title="Enter your 6-digit code." text={challenge ? `OTP sent to WhatsApp ${challenge.maskedPhone}. Use the default code 123456.` : 'OTP sent to WhatsApp. Use the default code 123456.'} /><label className="mt-8 block text-sm font-bold text-primary">WhatsApp OTP<input data-testid="input-otp-code" inputMode="numeric" maxLength={6} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, ''))} placeholder="123456" className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 text-center font-mono-ui text-xl tracking-[.5em] outline-none ring-primary/20 transition focus:ring-4" /></label><button data-testid="button-verify-otp" disabled={verifyOtp.isPending} className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3.5 text-sm font-bold text-primary-foreground disabled:opacity-60">{verifyOtp.isPending ? 'Checking…' : 'Verify and continue'} <ArrowRight className="h-4 w-4" /></button>{verifyOtp.isError && <p className="mt-3 text-sm text-destructive">That code did not work. Please try again.</p>}<button type="button" onClick={() => setStep(1)} className="mx-auto mt-5 block text-xs font-semibold text-muted-foreground underline">Use a different number</button></form>}
-      {step === 3 && <form onSubmit={submitBooking} className="space-y-8"><StepIcon icon={<CalendarDays />} title="Choose your visit." text="Select a department, doctor, preferred date and time." /><label className="block text-sm font-bold text-primary">Patient name<input data-testid="input-patient-name" required value={form.patientName} onChange={(event) => setForm({ ...form, patientName: event.target.value })} placeholder="Full name" className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-primary/20" /></label><div className="grid gap-6 md:grid-cols-2"><label className="text-sm font-bold text-primary">Department<select data-testid="select-booking-department" required value={form.department} onChange={(event) => setForm({ ...form, department: event.target.value })} className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-primary/20"><option value="">Choose department</option>{departments.map((department) => <option key={department.id} value={department.name}>{department.name}</option>)}</select></label><label className="text-sm font-bold text-primary">Doctor<select data-testid="select-booking-doctor" required value={form.doctorId} onChange={(event) => { const doctor = doctors.find((item) => item.id === event.target.value); setForm({ ...form, doctorId: event.target.value, doctorName: doctor?.name || '', department: form.department || doctor?.specialty || '' }); }} className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-primary/20"><option value="">Choose doctor</option>{doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.name} · {doctor.specialty}</option>)}</select></label><label className="text-sm font-bold text-primary">Preferred date<input data-testid="input-booking-date" required type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-primary/20" /></label><label className="text-sm font-bold text-primary">Preferred time<input data-testid="input-booking-time" required type="time" value={form.time} onChange={(event) => setForm({ ...form, time: event.target.value })} className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-primary/20" /></label></div><label className="block text-sm font-bold text-primary">Reason for visit<span className="ml-2 font-normal text-muted-foreground">(optional)</span><textarea data-testid="input-booking-reason" value={form.reason} onChange={(event) => setForm({ ...form, reason: event.target.value })} placeholder="A brief note for the clinic" rows={3} className="mt-2 w-full resize-none rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-primary/20" /></label>{selectedDoctor && <p className="rounded-xl bg-secondary px-4 py-3 text-xs text-primary"><Clock3 className="mr-2 inline h-4 w-4" /> Usual schedule: {selectedDoctor.schedule}. The clinic will confirm your request.</p>}<button data-testid="button-confirm-booking" disabled={create.isPending} className="flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3.5 text-sm font-bold text-primary-foreground disabled:opacity-60">{create.isPending ? 'Creating request…' : 'Confirm booking request'} <Check className="h-4 w-4" /></button>{create.isError && <p className="text-sm text-destructive">We could not create that request. Please call the clinic and we will help.</p>}</form>}
-      {step === 4 && <div className="mx-auto max-w-lg text-center"><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[hsl(var(--secondary))] text-primary"><Check className="h-8 w-8" /></div><p className="mt-6 font-mono-ui text-[10px] uppercase tracking-[.2em] text-[hsl(var(--accent))]">Request received</p><h2 className="mt-3 font-display text-3xl font-extrabold text-primary">You are on the list.</h2><p className="mt-4 text-sm leading-7 text-muted-foreground">The clinic team will confirm the details for {form.doctorName} on {form.date}. Your patient portal is ready whenever you need it.</p><div className="mt-7 flex flex-wrap justify-center gap-3"><Link href="/patient" className="rounded-full bg-primary px-5 py-3 text-sm font-bold text-primary-foreground">Open patient portal</Link><Link href="/" className="rounded-full border border-border px-5 py-3 text-sm font-bold text-primary">Back home</Link></div></div>}
-    </div>
-  </div></main></Shell>;
-}
-
-function BookingLegacy() {
-  const [, setLocation] = useLocation();
-  const [step, setStep] = useState(1); const [phone, setPhone] = useState(''); const [code, setCode] = useState('123456'); const [challenge, setChallenge] = useState<{ challengeId: string; maskedPhone: string; expiresInSeconds: number } | null>(null); const [session, setSession] = useState<{ patientId: string; phone: string; isNew: boolean } | null>(null); const [form, setForm] = useState({ patientName: '', doctorId: '', doctorName: '', department: '', date: '', time: '', reason: '' });
-  useEffect(() => {
-    if (step === 1) {
-      document.querySelector('[data-testid="input-booking-phone"]')?.setAttribute('placeholder', 'Enter your WhatsApp number');
-    }
-  }, [step]);
-  const doctorsQ = useGetDoctors({ query: { queryKey: getGetDoctorsQueryKey() } }); const depsQ = useGetDepartments({ query: { queryKey: getGetDepartmentsQueryKey() } }); const doctors = doctorsQ.data || fallbackDoctors; const deps = depsQ.data || fallbackDepartments;
-  const requestOtp = useRequestOtp(); const verifyOtp = useVerifyOtp(); const create = useCreateAppointment();
-  const selectedDoctor = doctors.find((d) => d.id === form.doctorId);
-  const submitPhone = (event: React.FormEvent) => { event.preventDefault(); if (phone.length < 8) return; requestOtp.mutate({ data: { phone } }, { onSuccess: (result) => { setChallenge(result); setStep(2); } }); };
-  const submitCode = (event: React.FormEvent) => { event.preventDefault(); if (!challenge) return; verifyOtp.mutate({ data: { challengeId: challenge.challengeId, phone, code } }, { onSuccess: (result) => { setSession(result); localStorage.setItem('clinicPatientSession', JSON.stringify(result)); setForm((f) => ({ ...f, phone: result.phone } as typeof f)); setStep(3); } }); };
-  const submitBooking = (event: React.FormEvent) => { event.preventDefault(); if (!session || !form.doctorId || !form.date || !form.time || !form.patientName) return; const body: AppointmentInput = { patientId: session.patientId, patientName: form.patientName, phone: session.phone, doctorId: form.doctorId, doctorName: form.doctorName, department: form.department, date: form.date, time: form.time, reason: form.reason }; create.mutate({ data: body }, { onSuccess: () => { queryClient.invalidateQueries({ queryKey: getGetAppointmentsQueryKey({ patientId: session.patientId }) }); setStep(4); } }); };
-  return <Shell><main className="page-enter bg-[hsl(var(--secondary)/.32)]"><div className="mx-auto max-w-5xl px-5 py-12 lg:px-8 lg:py-20"><div className="mb-10"><Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground"><ChevronRight className="h-4 w-4 rotate-180" /> Back to clinic</Link><p className="mt-8 font-mono-ui text-[10px] uppercase tracking-[.2em] text-[hsl(var(--accent))]">Private booking flow</p><h1 className="mt-3 font-display text-4xl font-extrabold tracking-[-.06em] text-primary md:text-6xl">Book with confidence.</h1><p className="mt-4 max-w-xl text-base leading-7 text-muted-foreground">Public browsing is open. We use a quick phone verification here so your appointment stays connected to you.</p></div><div className="mb-8 flex items-center gap-2">{['Verify phone', 'Your details', 'Choose a visit', 'Confirmed'].map((label, i) => <div className="flex flex-1 items-center gap-2" key={label}><div className={cx('flex h-8 w-8 shrink-0 items-center justify-center rounded-full font-mono-ui text-xs font-bold', step > i ? 'bg-primary text-primary-foreground' : 'border border-border bg-card text-muted-foreground')}>{step > i ? <Check className="h-4 w-4" /> : i + 1}</div><span className="hidden text-xs font-semibold text-muted-foreground sm:block">{label}</span>{i < 3 && <div className={cx('h-px flex-1', step > i + 1 ? 'bg-primary' : 'bg-border')} />}</div>)}</div><div className="rounded-[1.5rem] border border-border bg-card p-6 shadow-soft md:p-10">{step === 1 && <form onSubmit={submitPhone} className="mx-auto max-w-lg"><StepIcon icon={<Phone />} title="First, your mobile number." text="We will send a one-time code. No password, no account to remember." /><label className="mt-8 block text-sm font-bold text-primary">Mobile number<input data-testid="input-booking-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Enter your phone number" className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none ring-primary/20 transition focus:ring-4" /></label><button data-testid="button-request-otp" disabled={requestOtp.isPending} className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3.5 text-sm font-bold text-primary-foreground disabled:opacity-60">{requestOtp.isPending ? 'Sending code…' : 'Send verification code'} <ArrowRight className="h-4 w-4" /></button>{requestOtp.isError && <p className="mt-3 text-sm text-destructive">We could not send that code. Please check the number or call us.</p>}</form>}{step === 2 && <form onSubmit={submitCode} className="mx-auto max-w-lg"><StepIcon icon={<ShieldCheck />} title="Enter your 4-digit code." text={challenge ? `Code sent to ${challenge.maskedPhone}. It expires soon.` : 'Check your phone for the verification code.'} /><label className="mt-8 block text-sm font-bold text-primary">Verification code<input data-testid="input-otp-code" inputMode="numeric" maxLength={4} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} placeholder="••••" className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 text-center font-mono-ui text-xl tracking-[.5em] outline-none ring-primary/20 transition focus:ring-4" /></label><button data-testid="button-verify-otp" disabled={verifyOtp.isPending} className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3.5 text-sm font-bold text-primary-foreground disabled:opacity-60">{verifyOtp.isPending ? 'Checking…' : 'Verify and continue'} <ArrowRight className="h-4 w-4" /></button>{verifyOtp.isError && <p className="mt-3 text-sm text-destructive">That code did not work. Please try again.</p>}<button type="button" onClick={() => setStep(1)} className="mx-auto mt-5 block text-xs font-semibold text-muted-foreground underline">Use a different number</button></form>}{step === 3 && <form onSubmit={submitBooking} className="space-y-8"><StepIcon icon={<CalendarDays />} title={session?.isNew ? 'Tell us who we are booking for.' : 'Choose your visit.'} text={session?.isNew ? 'A name helps our team welcome you.' : 'Select a doctor, service and convenient time.'} />{session?.isNew && <label className="block text-sm font-bold text-primary">Patient name<input data-testid="input-patient-name" required value={form.patientName} onChange={(e) => setForm({ ...form, patientName: e.target.value })} placeholder="Full name" className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-primary/20" /></label>}<div className="grid gap-6 md:grid-cols-2"><label className="text-sm font-bold text-primary">Department<select data-testid="select-booking-department" required value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-primary/20"><option value="">Choose department</option>{deps.map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}</select></label><label className="text-sm font-bold text-primary">Doctor<select data-testid="select-booking-doctor" required value={form.doctorId} onChange={(e) => { const d = doctors.find((doc) => doc.id === e.target.value); setForm({ ...form, doctorId: e.target.value, doctorName: d?.name || '', department: form.department || d?.specialty || '' }); }} className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-primary/20"><option value="">Choose doctor</option>{doctors.map((d) => <option key={d.id} value={d.id}>{d.name} · {d.specialty}</option>)}</select></label><label className="text-sm font-bold text-primary">Preferred date<input data-testid="input-booking-date" required type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-primary/20" /></label><label className="text-sm font-bold text-primary">Preferred time<input data-testid="input-booking-time" required type="time" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} className="mt-2 w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-primary/20" /></label></div><label className="block text-sm font-bold text-primary">Reason for visit<span className="ml-2 font-normal text-muted-foreground">(optional)</span><textarea data-testid="input-booking-reason" value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} placeholder="A brief note for the clinic" rows={3} className="mt-2 w-full resize-none rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none focus:ring-4 focus:ring-primary/20" /></label>{selectedDoctor && <p className="rounded-xl bg-secondary px-4 py-3 text-xs text-primary"><Clock3 className="mr-2 inline h-4 w-4" /> Usual schedule: {selectedDoctor.schedule}. The clinic will confirm your request.</p>}<button data-testid="button-confirm-booking" disabled={create.isPending} className="flex w-full items-center justify-center gap-2 rounded-full bg-primary px-5 py-3.5 text-sm font-bold text-primary-foreground disabled:opacity-60">{create.isPending ? 'Creating request…' : 'Confirm booking request'} <Check className="h-4 w-4" /></button>{create.isError && <p className="text-sm text-destructive">We could not create that request. Please call the clinic and we will help.</p>}</form>}{step === 4 && <div className="mx-auto max-w-lg text-center"><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[hsl(var(--secondary))] text-primary"><Check className="h-8 w-8" /></div><p className="mt-6 font-mono-ui text-[10px] uppercase tracking-[.2em] text-[hsl(var(--accent))]">Request received</p><h2 className="mt-3 font-display text-3xl font-extrabold text-primary">You are on the list.</h2><p className="mt-4 text-sm leading-7 text-muted-foreground">The clinic team will confirm the details for {form.doctorName} on {form.date}. Your patient portal is ready whenever you need it.</p><div className="mt-7 flex flex-wrap justify-center gap-3"><Link href="/patient" className="rounded-full bg-primary px-5 py-3 text-sm font-bold text-primary-foreground">Open patient portal</Link><Link href="/" className="rounded-full border border-border px-5 py-3 text-sm font-bold text-primary">Back home</Link></div></div>}</div></div></main></Shell>;
-}
-
-function StepIcon({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) {
-  return <div><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary text-primary">{icon}</div><h2 className="mt-6 font-display text-2xl font-extrabold text-primary">{title}</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">{text}</p></div>;
-}
-
-function getStoredSession() {
-  try { return JSON.parse(localStorage.getItem('clinicPatientSession') || 'null') as { patientId: string; phone: string; isNew: boolean } | null; } catch { return null; }
-}
-
-function StatusPill({ status }: { status: string }) {
-  const lower = status.toLowerCase(); return <span data-testid={`status-${lower}`} className={cx('inline-flex rounded-full px-2.5 py-1 font-mono-ui text-[10px] font-bold uppercase tracking-wide', lower.includes('cancel') ? 'bg-[hsl(var(--destructive)/.12)] text-destructive' : lower.includes('complete') ? 'bg-[hsl(var(--secondary))] text-primary' : 'bg-[hsl(var(--accent)/.14)] text-primary')}>{status}</span>;
-}
-
-function Patient() {
-  const [session, setSession] = useState(getStoredSession); const [location, setLocation] = useLocation(); const [editing, setEditing] = useState<string | null>(null); const [reschedule, setReschedule] = useState({ date: '', time: '' });
-  const patientId = session?.patientId || 'guest'; const q = useGetAppointments({ patientId }, { query: { enabled: !!session, queryKey: getGetAppointmentsQueryKey({ patientId }) } }); const update = useUpdateAppointment(); const appointments = q.data || [];
-  const upcoming = appointments.filter((a) => !['cancelled', 'completed'].includes(a.status.toLowerCase())); const history = appointments.filter((a) => ['cancelled', 'completed'].includes(a.status.toLowerCase()));
-  const patch = (appointment: Appointment, data: { date?: string; time?: string; status?: string }) => { update.mutate({ id: appointment.id, data }, { onSuccess: () => { queryClient.invalidateQueries({ queryKey: getGetAppointmentsQueryKey({ patientId }) }); setEditing(null); } }); };
-  if (!session) return <Shell><main className="page-enter bg-[hsl(var(--secondary)/.32)]"><div className="mx-auto max-w-3xl px-5 py-24 text-center lg:px-8"><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-secondary text-primary"><UserRound className="h-7 w-7" /></div><p className="mt-7 font-mono-ui text-[10px] uppercase tracking-[.2em] text-[hsl(var(--accent))]">Patient portal</p><h1 className="mt-3 font-display text-4xl font-extrabold tracking-[-.05em] text-primary">Your care, in one place.</h1><p className="mx-auto mt-4 max-w-md text-sm leading-7 text-muted-foreground">Verify your phone to see appointments and manage your visit details.</p><Link href="/book" className="mt-7 inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3.5 text-sm font-bold text-primary-foreground">Verify & book <ArrowRight className="h-4 w-4" /></Link></div></main></Shell>;
-  return <Shell><main className="page-enter bg-[hsl(var(--secondary)/.32)]"><div className="mx-auto max-w-7xl px-5 py-12 lg:px-8 lg:py-16"><div className="flex flex-col justify-between gap-5 md:flex-row md:items-end"><div><p className="font-mono-ui text-[10px] uppercase tracking-[.2em] text-[hsl(var(--accent))]">Patient portal</p><h1 className="mt-3 font-display text-4xl font-extrabold tracking-[-.06em] text-primary">Good to see you.</h1><p className="mt-2 text-sm text-muted-foreground">Appointments connected to {session.phone}.</p></div><button data-testid="button-sign-out" onClick={() => { localStorage.removeItem('clinicPatientSession'); setSession(null); setLocation('/'); }} className="inline-flex items-center gap-2 self-start rounded-full border border-border bg-card px-4 py-2.5 text-sm font-bold text-primary"><LogOut className="h-4 w-4" /> Sign out</button></div>{q.isLoading ? <div className="mt-10 rounded-2xl bg-card p-6"><LoadingBlock /></div> : q.isError ? <div className="mt-10"><ErrorState onRetry={() => q.refetch()} /></div> : <div className="mt-10 grid gap-10 lg:grid-cols-[1fr_.35fr]"><section><div className="mb-4 flex items-center justify-between"><h2 className="font-display text-xl font-extrabold text-primary">Your appointments</h2><Link href="/book" className="text-sm font-bold text-primary">New booking <ArrowRight className="ml-1 inline h-4 w-4" /></Link></div>{upcoming.length === 0 ? <div className="rounded-2xl border border-dashed border-border bg-card p-10 text-center"><CalendarDays className="mx-auto h-8 w-8 text-muted-foreground" /><p className="mt-4 font-display font-bold text-primary">No upcoming visits</p><p className="mt-1 text-sm text-muted-foreground">When you are ready, we will be here.</p></div> : <div className="grid gap-3">{upcoming.map((appointment) => <div key={appointment.id} className="rounded-2xl border border-border bg-card p-5 shadow-card"><div className="flex flex-col justify-between gap-4 sm:flex-row"><div><div className="flex flex-wrap items-center gap-2"><StatusPill status={appointment.status} /><span className="text-xs text-muted-foreground">{appointment.date} · {appointment.time}</span></div><h3 className="mt-3 font-display text-lg font-bold text-primary">{appointment.doctorName}</h3><p className="mt-1 text-sm text-muted-foreground">{appointment.department}</p></div><div className="flex gap-2 sm:self-start"><button data-testid={`button-reschedule-${appointment.id}`} onClick={() => setEditing(editing === appointment.id ? null : appointment.id)} className="rounded-full border border-border px-3 py-2 text-xs font-bold text-primary">Reschedule</button><button data-testid={`button-cancel-${appointment.id}`} onClick={() => patch(appointment, { status: 'cancelled' })} className="rounded-full border border-[hsl(var(--destructive)/.25)] px-3 py-2 text-xs font-bold text-destructive">Cancel</button></div></div>{editing === appointment.id && <div className="mt-5 grid gap-3 border-t border-border pt-4 sm:grid-cols-[1fr_1fr_auto]"><input data-testid={`input-reschedule-date-${appointment.id}`} type="date" value={reschedule.date} onChange={(e) => setReschedule({ ...reschedule, date: e.target.value })} className="rounded-xl border border-input bg-background px-3 py-2 text-sm" /><input data-testid={`input-reschedule-time-${appointment.id}`} type="time" value={reschedule.time} onChange={(e) => setReschedule({ ...reschedule, time: e.target.value })} className="rounded-xl border border-input bg-background px-3 py-2 text-sm" /><button data-testid={`button-save-reschedule-${appointment.id}`} onClick={() => patch(appointment, reschedule)} className="rounded-xl bg-primary px-4 py-2 text-xs font-bold text-primary-foreground">Save</button></div>}</div>)}</div>}<h2 className="mb-4 mt-12 font-display text-xl font-extrabold text-primary">History</h2>{history.length === 0 ? <p className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">Your completed and cancelled appointments will appear here.</p> : <div className="grid gap-2">{history.map((a) => <div key={a.id} className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3"><div><p className="text-sm font-bold text-primary">{a.doctorName}</p><p className="text-xs text-muted-foreground">{a.date} · {a.department}</p></div><StatusPill status={a.status} /></div>)}</div>}</section><aside className="h-fit rounded-2xl bg-primary p-6 text-primary-foreground"><ClipboardList className="h-6 w-6 text-[hsl(var(--sidebar-primary))]" /><h2 className="mt-6 font-display text-xl font-extrabold">Need to change something?</h2><p className="mt-2 text-sm leading-6 text-primary-foreground/65">You can reschedule or cancel an upcoming request here. For urgent help, call the clinic directly.</p><a href="tel:8978933511" className="mt-6 inline-flex items-center gap-2 text-sm font-bold text-[hsl(var(--sidebar-primary))]"><Phone className="h-4 w-4" /> 8978933511</a></aside></div>}</div></main></Shell>;
-}
-
-function Operations() {
-  const q = useGetOperationsSummary({ query: { queryKey: getGetOperationsSummaryQueryKey() } }); const summary = q.data as OperationsSummary | undefined;
-  const metrics: Array<{ label: string; value: number; Icon: React.ComponentType<{ className?: string }> }> = summary ? [{ label: 'Today', value: summary.todayAppointments, Icon: CalendarDays }, { label: 'Pending', value: summary.pendingRequests, Icon: ClipboardList }, { label: 'Active doctors', value: summary.activeDoctors, Icon: Stethoscope }, { label: 'Completed this month', value: summary.completedThisMonth, Icon: Check }] : [];
-  return <Shell><main className="page-enter min-h-[70vh] bg-[hsl(var(--secondary)/.32)]"><div className="mx-auto max-w-7xl px-5 py-12 lg:px-8 lg:py-16"><div className="flex items-end justify-between"><div><p className="font-mono-ui text-[10px] uppercase tracking-[.2em] text-[hsl(var(--accent))]">Staff workspace</p><h1 className="mt-3 font-display text-4xl font-extrabold tracking-[-.06em] text-primary">Operations overview.</h1><p className="mt-2 text-sm text-muted-foreground">A clear read on today’s patient flow.</p></div><span className="hidden rounded-full bg-secondary px-3 py-2 font-mono-ui text-[10px] font-bold text-primary md:block">LIVE CLINIC VIEW</span></div>{q.isLoading ? <div className="mt-10 grid gap-4 md:grid-cols-4">{[1,2,3,4].map((x) => <div className="skeleton h-32 rounded-2xl" key={x} />)}</div> : q.isError ? <div className="mt-10"><ErrorState onRetry={() => q.refetch()} /></div> : <><div className="mt-10 grid gap-4 md:grid-cols-4">{metrics.map(({ label, value, Icon }) => <div className="rounded-2xl border border-border bg-card p-5 shadow-card" key={label}><div className="flex items-center justify-between"><span className="text-xs font-semibold text-muted-foreground">{label}</span><Icon className="h-4 w-4 text-[hsl(var(--accent))]" /></div><p className="mt-6 font-mono-ui text-3xl font-bold text-primary">{String(value)}</p></div>)}</div><section className="mt-10 rounded-2xl border border-border bg-card shadow-card"><div className="flex items-center justify-between border-b border-border p-5"><div><h2 className="font-display font-extrabold text-primary">Recent appointments</h2><p className="mt-1 text-xs text-muted-foreground">Visibility for the operations team</p></div><Activity className="h-5 w-5 text-primary" /></div>{summary?.recentAppointments?.length ? <div className="divide-y divide-border">{summary.recentAppointments.map((a) => <div className="flex flex-col justify-between gap-3 p-5 sm:flex-row sm:items-center" key={a.id}><div className="flex items-center gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary text-primary"><UserRound className="h-4 w-4" /></div><div><p className="text-sm font-bold text-primary">{a.patientName}</p><p className="text-xs text-muted-foreground">{a.doctorName} · {a.date} at {a.time}</p></div></div><div className="flex items-center gap-4"><span className="text-xs text-muted-foreground">{a.department}</span><StatusPill status={a.status} /></div></div>)}</div> : <div className="p-10 text-center text-sm text-muted-foreground">No recent appointments to display.</div>}</section></>}</div></main></Shell>;
-}
-
-function Router() {
-  return <ErrorBoundary><Switch><Route path="/" component={Home} /><Route path="/about" component={About} /><Route path="/doctors" component={Doctors} /><Route path="/departments" component={Departments} /><Route path="/services" component={Services} /><Route path="/packages" component={Packages} /><Route path="/gallery" component={Gallery} /><Route path="/careers" component={Careers} /><Route path="/contact" component={Contact} /><Route path="/directions" component={Directions} /><Route path="/faqs" component={Faqs} /><Route path="/book" component={Booking} /><Route path="/patient" component={Patient} /><Route path="/operations" component={Operations} /><Route component={NotFound} /></Switch></ErrorBoundary>;
-}
-
-function App() {
-  return <QueryClientProvider client={queryClient}><TooltipProvider><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}><Router /></WouterRouter><Toaster /></TooltipProvider></QueryClientProvider>;
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AlertProvider>
+        <LanguageProvider>
+          {isAdminView ? (
+            <AdminDashboard />
+          ) : (
+            <div className="min-h-screen flex flex-col bg-background font-sans text-foreground antialiased selection:bg-primary selection:text-primary-foreground">
+              <Header />
+              <main className="flex-1 flex flex-col">
+                <Switch>
+                  <Route path="/" component={Home} />
+                  <Route path="/doctors" component={Doctors} />
+                  <Route path="/services" component={Services} />
+                  <Route path="/departments" component={Services} />
+                  <Route path="/packages" component={Packages} />
+                  <Route path="/about" component={About} />
+                  <Route path="/contact" component={Contact} />
+                  <Route path="/gallery" component={Gallery} />
+                  <Route path="/book" component={Booking} />
+                  <Route path="/patient" component={PatientPortal} />
+                  <Route path="/admin" component={AdminDashboard} />
+                  <Route path="/app/:rest*" component={AdminDashboard} />
+                  <Route component={Home} />
+                </Switch>
+              </main>
+              <Footer />
+            </div>
+          )}
+        </LanguageProvider>
+      </AlertProvider>
+    </QueryClientProvider>
+  );
 }
 
 export default App;
